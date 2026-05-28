@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Quant Terminal</title>
+<title>V2 Trading Desk</title>
 
 <link rel="stylesheet" href="../style.css">
 <script src="https://s3.tradingview.com/tv.js"></script>
@@ -13,31 +13,81 @@ margin:0;
 background:#05070b;
 color:white;
 font-family:Inter;
+overflow:hidden;
 }
 
+/* TOP BAR */
 .topbar{
 display:flex;
-gap:15px;
-padding:20px;
+justify-content:space-between;
+align-items:center;
+padding:12px 20px;
 background:#0f172a;
+border-bottom:1px solid #1f2937;
 position:fixed;
-width:100%;
 top:0;
+width:100%;
 z-index:10;
+}
+
+.controls{
+display:flex;
+gap:10px;
+align-items:center;
 }
 
 select,button{
 background:#111827;
 color:white;
 border:1px solid #222;
-padding:10px;
-border-radius:10px;
+padding:8px 10px;
+border-radius:8px;
+cursor:pointer;
 }
 
-#chart{
-margin-top:80px;
-height:90vh;
+/* DESK GRID */
+.desk{
+display:grid;
+grid-template-columns:2fr 1fr;
+grid-template-rows:1fr 1fr;
+gap:10px;
+padding:60px 10px 10px;
+height:100vh;
+box-sizing:border-box;
 }
+
+.panel{
+background:#0b1220;
+border:1px solid #1f2937;
+border-radius:12px;
+overflow:hidden;
+position:relative;
+}
+
+/* charts */
+#chart1,#chart2,#chart3,#chart4{
+width:100%;
+height:100%;
+}
+
+/* SIDE PANEL */
+.side{
+display:flex;
+flex-direction:column;
+gap:10px;
+}
+
+/* INFO BOX */
+.box{
+padding:12px;
+border-bottom:1px solid #1f2937;
+font-size:14px;
+color:#9ca3af;
+}
+
+.green{color:#4ade80;}
+.red{color:#fb7185;}
+.blue{color:#60a5fa;}
 </style>
 
 </head>
@@ -46,57 +96,85 @@ height:90vh;
 
 <div class="topbar">
 
+<div class="controls">
+
 <select id="symbol">
 <option>BTCUSDT</option>
 <option>ETHUSDT</option>
 <option>SOLUSDT</option>
 <option>BNBUSDT</option>
-<option>XRPUSDT</option>
 </select>
 
-<select id="tf">
-<option value="1">1m</option>
-<option value="5">5m</option>
-<option value="15" selected>15m</option>
-<option value="60">1h</option>
-<option value="240">4h</option>
-<option value="D">1D</option>
-</select>
-
-<button onclick="load()">LOAD</button>
+<button onclick="loadAll()">SYNC</button>
 
 </div>
 
-<div id="chart"></div>
+<div style="color:#60a5fa;font-weight:700;">
+V2 TRADING DESK
+</div>
+
+</div>
+
+<div class="desk">
+
+<div class="panel"><div id="chart1"></div></div>
+<div class="panel side">
+
+<div class="box">BTC PRICE: <span id="btc">loading...</span></div>
+<div class="box">AI BIAS: <span class="green">BULLISH</span></div>
+<div class="box">RISK: <span class="blue">MEDIUM</span></div>
+<div class="box">FLOW: <span class="green">ACCUMULATION</span></div>
+
+</div>
+
+<div class="panel"><div id="chart2"></div></div>
+<div class="panel"><div id="chart3"></div></div>
+
+</div>
 
 <script>
+let widgets = [];
 
-let widget;
-
-function load(){
-
-let symbol = document.getElementById("symbol").value;
-let tf = document.getElementById("tf").value;
-
-document.getElementById("chart").innerHTML = "";
-
-widget = new TradingView.widget({
-  container_id: "chart",
+function makeChart(container, symbol, interval){
+return new TradingView.widget({
+  container_id: container,
   width: "100%",
   height: "100%",
   symbol: "BINANCE:" + symbol,
-  interval: tf,
+  interval: interval,
   theme: "dark",
   style: "1",
   locale: "en",
-  hide_side_toolbar: false,
-  allow_symbol_change: true
+  hide_side_toolbar: true
 });
+}
+
+function loadAll(){
+
+let symbol = document.getElementById("symbol").value;
+
+document.getElementById("chart1").innerHTML="";
+document.getElementById("chart2").innerHTML="";
+document.getElementById("chart3").innerHTML="";
+
+makeChart("chart1",symbol,"1");
+makeChart("chart2",symbol,"15");
+makeChart("chart3",symbol,"60");
 
 }
 
-load();
+async function btc(){
+try{
+let r = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT");
+let d = await r.json();
+document.getElementById("btc").innerText = "$"+Number(d.price).toFixed(0);
+}catch(e){}
+}
 
+btc();
+setInterval(btc,5000);
+
+loadAll();
 </script>
 
 </body>
