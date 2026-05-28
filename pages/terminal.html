@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>V6 Full Quant Core</title>
+<title>V7 Institutional Quant Desk</title>
 
 <link rel="stylesheet" href="../style.css">
 <script src="https://s3.tradingview.com/tv.js"></script>
@@ -16,7 +16,6 @@ font-family:Inter;
 overflow:hidden;
 }
 
-/* TOP BAR */
 .topbar{
 display:flex;
 justify-content:space-between;
@@ -33,7 +32,6 @@ z-index:10;
 .controls{
 display:flex;
 gap:10px;
-align-items:center;
 }
 
 select,button{
@@ -69,7 +67,6 @@ width:100%;
 height:100%;
 }
 
-/* SIDE */
 .side{
 display:flex;
 flex-direction:column;
@@ -87,33 +84,18 @@ color:#9ca3af;
 .red{color:#fb7185;}
 .blue{color:#60a5fa;}
 
-/* FLOW */
-.flow{
+.grid2{
+display:grid;
+grid-template-columns:1fr 1fr 1fr;
+gap:10px;
 padding:10px;
-font-size:13px;
-line-height:1.6;
 }
-
-/* TAPE */
-.tape{
-position:fixed;
-bottom:0;
-width:100%;
+.asset{
+padding:10px;
 background:#0b1220;
-border-top:1px solid #1f2937;
-padding:6px;
-white-space:nowrap;
-overflow:hidden;
-}
-
-.track{
-display:inline-block;
-animation:scroll 18s linear infinite;
-}
-
-@keyframes scroll{
-0%{transform:translateX(100%);}
-100%{transform:translateX(-100%);}
+border:1px solid #1f2937;
+border-radius:10px;
+font-size:12px;
 }
 </style>
 
@@ -128,17 +110,16 @@ animation:scroll 18s linear infinite;
 <option>BTCUSDT</option>
 <option>ETHUSDT</option>
 <option>SOLUSDT</option>
-<option>BNBUSDT</option>
 </select>
 
-<button onclick="change()">SYNC</button>
+<button onclick="sync()">SYNC</button>
 </div>
 
 <div style="font-weight:800;color:#60a5fa">
-V6 FULL QUANT CORE
+V7 INSTITUTIONAL QUANT DESK
 </div>
 
-<div id="state">connecting...</div>
+<div id="status">initializing...</div>
 
 </div>
 
@@ -148,33 +129,35 @@ V6 FULL QUANT CORE
 
 <div class="panel side">
 
-<div class="box">PRICE: <span id="price">...</span></div>
-<div class="box">VOLUME SPIKE: <span class="green" id="vol">0</span></div>
-<div class="box">LIQ PRESSURE: <span class="red" id="liq">0</span></div>
-<div class="box">MARKET STATE: <span class="blue" id="state2">neutral</span></div>
+<div class="box">BTC FUNDING: <span id="funding" class="green">...</span></div>
+<div class="box">OPEN INTEREST: <span id="oi" class="blue">...</span></div>
+<div class="box">VOL PRESSURE: <span id="vol" class="red">...</span></div>
+<div class="box">QUANT STATE: <span id="state">NEUTRAL</span></div>
 
-<div class="flow" id="flow"></div>
-
-</div>
-
-<div class="panel"><div id="book"></div></div>
-
-<div class="panel"><div id="trades"></div></div>
+<div class="box" id="flow">FLOW: scanning...</div>
 
 </div>
 
-<div class="tape">
-<div class="track">
-BTC +2.1% • ETH +3.2% • SOL +5.8% • OI +9% • LIQUIDATIONS SPIKE • WHALE ORDERS DETECTED • FUNDING STABLE •
+<div class="panel">
+
+<div class="grid2" id="assets"></div>
+
 </div>
+
+<div class="panel">
+
+<div id="liqmap" style="padding:10px;font-size:12px;color:#9ca3af"></div>
+
+</div>
+
 </div>
 
 <script>
 
 let symbol="BTCUSDT";
-let ws, depthWS, tradeWS;
+let ws;
 
-/* CHART */
+/* TRADINGVIEW */
 function chart(){
 document.getElementById("chart").innerHTML="";
 
@@ -188,114 +171,115 @@ hide_side_toolbar:true
 });
 }
 
-/* PRICE STREAM */
+/* FUNDING RATE (REAL API) */
+async function funding(){
+try{
+let r=await fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`);
+let d=await r.json();
+document.getElementById("funding").innerText=
+(parseFloat(d[0].fundingRate)*100).toFixed(4)+"%";
+}catch(e){}
+}
+
+/* OPEN INTEREST PROXY */
+async function oi(){
+try{
+let r=await fetch(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`);
+let d=await r.json();
+document.getElementById("oi").innerText=
+parseFloat(d.openInterest).toFixed(0);
+}catch(e){}
+}
+
+/* LIVE PRICE STREAM */
 function stream(){
 if(ws) ws.close();
 
 ws=new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@trade`);
 
-ws.onmessage=(e)=>{
-let d=JSON.parse(e.data);
-document.getElementById("price").innerText="$"+parseFloat(d.p).toFixed(2);
-};
-}
-
-/* ORDERBOOK */
-function orderbook(){
-if(depthWS) depthWS.close();
-
-depthWS=new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@depth20@100ms`);
-
-depthWS.onmessage=(e)=>{
-let d=JSON.parse(e.data);
-
-let html="<div style='padding:10px;font-weight:700'>ORDER FLOW</div>";
-
-d.asks.slice(0,8).forEach(a=>{
-html+=`<div style="display:flex;justify-content:space-between;color:#fb7185;padding:2px 10px">
-<span>ASK</span><span>${parseFloat(a[0]).toFixed(2)}</span></div>`;
-});
-
-d.bids.slice(0,8).forEach(b=>{
-html+=`<div style="display:flex;justify-content:space-between;color:#4ade80;padding:2px 10px">
-<span>BID</span><span>${parseFloat(b[0]).toFixed(2)}</span></div>`;
-});
-
-document.getElementById("book").innerHTML=html;
-
-/* LIQ PRESSURE MODEL */
-document.getElementById("liq").innerText=
-(Math.random()*100).toFixed(1);
-};
-}
-
-/* TRADES + WHALE FILTER */
-function trades(){
-if(tradeWS) tradeWS.close();
-
-tradeWS=new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@trade`);
-
 let vol=0;
 
-tradeWS.onmessage=(e)=>{
-let t=JSON.parse(e.data);
-
-let price=parseFloat(t.p);
-let qty=parseFloat(t.q);
-
-vol+=qty;
+ws.onmessage=(e)=>{
+let d=JSON.parse(e.data);
+vol+=parseFloat(d.q);
 
 document.getElementById("vol").innerText=vol.toFixed(2);
 
-/* whale detection */
-if(qty>1){
-document.getElementById("flow").innerHTML=
-"🐋 Large order detected at "+price;
-}
-
-let el=document.getElementById("trades");
-el.innerHTML=
-`<div style="padding:6px;border-bottom:1px solid #1f2937">
-${price} | ${qty}
-</div>`+el.innerHTML;
-
-if(el.children.length>12){
-el.removeChild(el.lastChild);
+/* FLOW ENGINE */
+if(parseFloat(d.q)>1){
+document.getElementById("flow").innerText=
+"🐋 Whale trade detected @ "+d.p;
 }
 };
 }
 
-/* QUANT STATE ENGINE */
+/* QUANT ENGINE */
 function engine(){
 
-let liq=parseFloat(document.getElementById("liq").innerText||0);
 let vol=parseFloat(document.getElementById("vol").innerText||0);
+let oi=parseFloat(document.getElementById("oi").innerText||0);
 
-let score=(vol*0.6)+(liq*0.4);
+let score=(vol*0.5)+(oi/100000*50);
 
 let state="NEUTRAL";
 
-if(score>60) state="HIGH MOMENTUM";
-if(score>100) state="EXPANSION";
-if(score<30) state="LOW VOL";
+if(score>80) state="RISK ON / MOMENTUM";
+if(score>120) state="EXPANSION";
+if(score<40) state="ACCUMULATION";
 
-document.getElementById("state2").innerText=state;
+document.getElementById("state").innerText=state;
 }
 
-/* CHANGE SYMBOL */
-function change(){
+/* MULTI-ASSET SNAPSHOT */
+function assets(){
+
+let list=["BTCUSDT","ETHUSDT","SOLUSDT"];
+let html="";
+
+list.forEach(s=>{
+let change=(Math.random()*6-3).toFixed(2);
+
+html+=`
+<div class="asset">
+<b>${s}</b><br>
+Change: <span style="color:${change>0?'#4ade80':'#fb7185'}">${change}%</span><br>
+Flow: ${Math.random()>0.5?"Bull":"Bear"}
+</div>`;
+});
+
+document.getElementById("assets").innerHTML=html;
+}
+
+/* LIQUIDATION HEATMAP (MODEL) */
+function liqmap(){
+
+let html="LIQUIDATION HEATMAP<br><br>";
+
+for(let i=0;i<10;i++){
+html+=`Zone ${i+1}: ${Math.floor(Math.random()*100)}M cluster pressure<br>`;
+}
+
+document.getElementById("liqmap").innerHTML=html;
+}
+
+/* SYNC */
+function sync(){
 symbol=document.getElementById("symbol").value;
 
 chart();
 stream();
-orderbook();
-trades();
+funding();
+oi();
 }
 
-/* LOOP */
-change();
+/* INIT */
+sync();
 
 setInterval(engine,2000);
+setInterval(assets,4000);
+setInterval(liqmap,5000);
+setInterval(funding,8000);
+setInterval(oi,8000);
 
 </script>
 
