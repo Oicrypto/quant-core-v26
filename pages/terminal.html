@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>V2 Trading Desk</title>
+<title>V3 Institutional Desk</title>
 
 <link rel="stylesheet" href="../style.css">
 <script src="https://s3.tradingview.com/tv.js"></script>
@@ -21,8 +21,8 @@ overflow:hidden;
 display:flex;
 justify-content:space-between;
 align-items:center;
-padding:12px 20px;
-background:#0f172a;
+padding:10px 16px;
+background:#0b1220;
 border-bottom:1px solid #1f2937;
 position:fixed;
 top:0;
@@ -30,7 +30,7 @@ width:100%;
 z-index:10;
 }
 
-.controls{
+.left, .right{
 display:flex;
 gap:10px;
 align-items:center;
@@ -40,64 +40,109 @@ select,button{
 background:#111827;
 color:white;
 border:1px solid #222;
-padding:8px 10px;
+padding:7px 10px;
 border-radius:8px;
 cursor:pointer;
 }
 
-/* DESK GRID */
-.desk{
+/* MAIN GRID */
+.grid{
 display:grid;
 grid-template-columns:2fr 1fr;
 grid-template-rows:1fr 1fr;
 gap:10px;
-padding:60px 10px 10px;
+padding:55px 10px 10px;
 height:100vh;
 box-sizing:border-box;
 }
 
+/* PANELS */
 .panel{
 background:#0b1220;
 border:1px solid #1f2937;
-border-radius:12px;
+border-radius:14px;
 overflow:hidden;
 position:relative;
 }
 
-/* charts */
-#chart1,#chart2,#chart3,#chart4{
+#chart1,#chart2,#chart3{
 width:100%;
 height:100%;
 }
 
-/* SIDE PANEL */
+/* SIDE STACK */
 .side{
 display:flex;
 flex-direction:column;
 gap:10px;
 }
 
-/* INFO BOX */
 .box{
 padding:12px;
 border-bottom:1px solid #1f2937;
-font-size:14px;
+font-size:13px;
 color:#9ca3af;
 }
 
-.green{color:#4ade80;}
-.red{color:#fb7185;}
-.blue{color:#60a5fa;}
+/* LIVE DOT */
+.dot{
+width:8px;
+height:8px;
+border-radius:50%;
+background:#4ade80;
+box-shadow:0 0 12px #4ade80;
+display:inline-block;
+margin-right:6px;
+}
+
+/* ORDERBOOK */
+.orderbook{
+padding:10px;
+font-size:12px;
+overflow:auto;
+height:100%;
+}
+
+.row{
+display:flex;
+justify-content:space-between;
+padding:2px 0;
+}
+
+.bid{color:#4ade80;}
+.ask{color:#fb7185;}
+
+/* TICKER */
+.ticker{
+position:fixed;
+bottom:0;
+width:100%;
+background:#0b1220;
+border-top:1px solid #1f2937;
+padding:6px;
+white-space:nowrap;
+overflow:hidden;
+}
+
+.track{
+display:inline-block;
+animation:scroll 20s linear infinite;
+}
+
+@keyframes scroll{
+0%{transform:translateX(100%);}
+100%{transform:translateX(-100%);}
+}
 </style>
 
 </head>
 
 <body>
 
+<!-- TOP -->
 <div class="topbar">
 
-<div class="controls">
-
+<div class="left">
 <select id="symbol">
 <option>BTCUSDT</option>
 <option>ETHUSDT</option>
@@ -105,76 +150,115 @@ color:#9ca3af;
 <option>BNBUSDT</option>
 </select>
 
-<button onclick="loadAll()">SYNC</button>
+<button onclick="load()">SYNC</button>
+</div>
+
+<div style="color:#60a5fa;font-weight:800;">
+V3 INSTITUTIONAL DESK
+</div>
+
+<div class="right">
+<span class="dot"></span>
+LIVE
+</div>
 
 </div>
 
-<div style="color:#60a5fa;font-weight:700;">
-V2 TRADING DESK
-</div>
-
-</div>
-
-<div class="desk">
+<!-- GRID -->
+<div class="grid">
 
 <div class="panel"><div id="chart1"></div></div>
+
 <div class="panel side">
 
-<div class="box">BTC PRICE: <span id="btc">loading...</span></div>
-<div class="box">AI BIAS: <span class="green">BULLISH</span></div>
-<div class="box">RISK: <span class="blue">MEDIUM</span></div>
-<div class="box">FLOW: <span class="green">ACCUMULATION</span></div>
+<div class="box">BTC: <span id="btc">...</span></div>
+<div class="box">AI BIAS: <span style="color:#4ade80">BULLISH</span></div>
+<div class="box">FLOW: ACCUMULATION</div>
+<div class="box">RISK: MID</div>
+
+<div class="orderbook" id="book"></div>
 
 </div>
 
 <div class="panel"><div id="chart2"></div></div>
+
 <div class="panel"><div id="chart3"></div></div>
 
+</div>
+
+<!-- TICKER -->
+<div class="ticker">
+<div class="track">
+BTC +2.1% • ETH +3.4% • SOL +5.2% • XRP -1.2% • OPEN INTEREST +11% • LIQUIDATIONS SPIKE • WHALES ACTIVE •
+</div>
 </div>
 
 <script>
 let widgets = [];
 
-function makeChart(container, symbol, interval){
+function chart(id,symbol,tf){
 return new TradingView.widget({
-  container_id: container,
-  width: "100%",
-  height: "100%",
-  symbol: "BINANCE:" + symbol,
-  interval: interval,
-  theme: "dark",
-  style: "1",
-  locale: "en",
-  hide_side_toolbar: true
+  container_id:id,
+  width:"100%",
+  height:"100%",
+  symbol:"BINANCE:"+symbol,
+  interval:tf,
+  theme:"dark",
+  style:"1",
+  hide_side_toolbar:true,
+  allow_symbol_change:false
 });
 }
 
-function loadAll(){
-
-let symbol = document.getElementById("symbol").value;
+function load(){
+let s=document.getElementById("symbol").value;
 
 document.getElementById("chart1").innerHTML="";
 document.getElementById("chart2").innerHTML="";
 document.getElementById("chart3").innerHTML="";
 
-makeChart("chart1",symbol,"1");
-makeChart("chart2",symbol,"15");
-makeChart("chart3",symbol,"60");
-
+chart("chart1",s,"1");
+chart("chart2",s,"15");
+chart("chart3",s,"60");
 }
 
 async function btc(){
 try{
-let r = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT");
-let d = await r.json();
-document.getElementById("btc").innerText = "$"+Number(d.price).toFixed(0);
+let r=await fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT");
+let d=await r.json();
+document.getElementById("btc").innerText="$"+Number(d.price).toFixed(0);
 }catch(e){}
 }
 
-btc();
-setInterval(btc,5000);
+/* MOCK ORDERBOOK (visual institutional style) */
+function book(){
+let html="";
 
-loadAll();
+for(let i=0;i<12;i++){
+html+=`
+<div class="row ask">
+<span>SELL ${(Math.random()*10).toFixed(2)}</span>
+<span>${(Math.random()*50+100).toFixed(2)}</span>
+</div>`;
+}
+
+for(let i=0;i<12;i++){
+html+=`
+<div class="row bid">
+<span>BUY ${(Math.random()*10).toFixed(2)}</span>
+<span>${(Math.random()*50+100).toFixed(2)}</span>
+</div>`;
+}
+
+document.getElementById("book").innerHTML=html;
+}
+
+btc();
+setInterval(btc,4000);
+setInterval(book,1500);
+
+load();
+book();
 </script>
 
 </body>
