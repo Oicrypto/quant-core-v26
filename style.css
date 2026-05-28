@@ -1,61 +1,55 @@
 *{
-margin:0;
-padding:0;
-box-sizing:border-box;
+border-top:1px solid rgba(255,255,255,0.06);
+border-bottom:1px solid rgba(255,255,255,0.06);
+background:rgba(255,255,255,0.02);
+padding:24px 0;
 }
 
-body{
-background:#05070b;
-color:white;
-font-family:'Inter',sans-serif;
-overflow-x:hidden;
-position:relative;
+.ticker-track{
+white-space:nowrap;
+font-size:20px;
+font-weight:700;
+color:#cbd5e1;
+animation:ticker 30s linear infinite;
 }
 
-.bg{
-position:fixed;
-inset:0;
-background:
-radial-gradient(circle at top left,#13203a 0%,transparent 40%),
-radial-gradient(circle at bottom right,#1d1040 0%,transparent 40%),
-#05070b;
-z-index:-5;
+@keyframes ticker{
+0%{transform:translateX(100%);}
+100%{transform:translateX(-100%);}
 }
 
-.grid{
-position:fixed;
-inset:0;
-background-image:
-linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-background-size:60px 60px;
-mask-image:radial-gradient(circle at center,black 30%,transparent 90%);
-z-index:-4;
+.footer{
+padding:40px 70px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+border-top:1px solid rgba(255,255,255,0.06);
+color:#94a3b8;
 }
 
-.noise{
-position:fixed;
-inset:0;
-opacity:0.03;
-background-image:url('https://grainy-gradients.vercel.app/noise.svg');
-z-index:-3;
-}
-
-.glow{
-position:fixed;
+.footer-live{
+width:10px;
+height:10px;
 border-radius:50%;
-filter:blur(120px);
-z-index:-2;
-animation:float 8s ease-in-out infinite;
+background:#4ade80;
+box-shadow:0 0 15px #4ade80;
 }
 
-.glow1{
-width:400px;
-height:400px;
-background:#2563eb;
-top:-100px;
-left:-100px;
+.footer-right{
+display:flex;
+align-items:center;
+gap:12px;
 }
 
-.glow2{
+@media(max-width:1200px){
+.hero{grid-template-columns:1fr;}
+.hero h1{font-size:70px;}
+.nav-links{display:none;}
+}
+
+@media(max-width:768px){
+.hero{padding:140px 25px 80px;}
+.navbar{padding:20px 25px;}
+.hero h1{font-size:52px;}
+.chart-area{height:420px;}
 }
