@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>V3 Institutional Desk</title>
+<title>V4 Ultra Desk</title>
 
 <link rel="stylesheet" href="../style.css">
 <script src="https://s3.tradingview.com/tv.js"></script>
@@ -21,16 +21,16 @@ overflow:hidden;
 display:flex;
 justify-content:space-between;
 align-items:center;
-padding:10px 16px;
+padding:10px 14px;
 background:#0b1220;
 border-bottom:1px solid #1f2937;
 position:fixed;
 top:0;
 width:100%;
-z-index:10;
+z-index:20;
 }
 
-.left, .right{
+.controls{
 display:flex;
 gap:10px;
 align-items:center;
@@ -40,12 +40,12 @@ select,button{
 background:#111827;
 color:white;
 border:1px solid #222;
-padding:7px 10px;
+padding:8px 10px;
 border-radius:8px;
 cursor:pointer;
 }
 
-/* MAIN GRID */
+/* GRID */
 .grid{
 display:grid;
 grid-template-columns:2fr 1fr;
@@ -56,7 +56,6 @@ height:100vh;
 box-sizing:border-box;
 }
 
-/* PANELS */
 .panel{
 background:#0b1220;
 border:1px solid #1f2937;
@@ -65,12 +64,12 @@ overflow:hidden;
 position:relative;
 }
 
-#chart1,#chart2,#chart3{
+#chart{
 width:100%;
 height:100%;
 }
 
-/* SIDE STACK */
+/* SIDE */
 .side{
 display:flex;
 flex-direction:column;
@@ -78,22 +77,15 @@ gap:10px;
 }
 
 .box{
-padding:12px;
+padding:10px;
 border-bottom:1px solid #1f2937;
 font-size:13px;
 color:#9ca3af;
 }
 
-/* LIVE DOT */
-.dot{
-width:8px;
-height:8px;
-border-radius:50%;
-background:#4ade80;
-box-shadow:0 0 12px #4ade80;
-display:inline-block;
-margin-right:6px;
-}
+.green{color:#4ade80;}
+.red{color:#fb7185;}
+.blue{color:#60a5fa;}
 
 /* ORDERBOOK */
 .orderbook{
@@ -111,38 +103,15 @@ padding:2px 0;
 
 .bid{color:#4ade80;}
 .ask{color:#fb7185;}
-
-/* TICKER */
-.ticker{
-position:fixed;
-bottom:0;
-width:100%;
-background:#0b1220;
-border-top:1px solid #1f2937;
-padding:6px;
-white-space:nowrap;
-overflow:hidden;
-}
-
-.track{
-display:inline-block;
-animation:scroll 20s linear infinite;
-}
-
-@keyframes scroll{
-0%{transform:translateX(100%);}
-100%{transform:translateX(-100%);}
-}
 </style>
 
 </head>
 
 <body>
 
-<!-- TOP -->
 <div class="topbar">
 
-<div class="left">
+<div class="controls">
 <select id="symbol">
 <option>BTCUSDT</option>
 <option>ETHUSDT</option>
@@ -150,115 +119,146 @@ animation:scroll 20s linear infinite;
 <option>BNBUSDT</option>
 </select>
 
-<button onclick="load()">SYNC</button>
+<button onclick="changeSymbol()">SYNC</button>
 </div>
 
-<div style="color:#60a5fa;font-weight:800;">
-V3 INSTITUTIONAL DESK
+<div style="font-weight:800;color:#60a5fa">
+V4 ULTRA DESK (LIVE)
 </div>
 
-<div class="right">
-<span class="dot"></span>
-LIVE
-</div>
+<div id="status">connecting...</div>
 
 </div>
 
-<!-- GRID -->
 <div class="grid">
 
-<div class="panel"><div id="chart1"></div></div>
+<div class="panel"><div id="chart"></div></div>
 
 <div class="panel side">
 
-<div class="box">BTC: <span id="btc">...</span></div>
-<div class="box">AI BIAS: <span style="color:#4ade80">BULLISH</span></div>
-<div class="box">FLOW: ACCUMULATION</div>
-<div class="box">RISK: MID</div>
+<div class="box">PRICE: <span id="price">...</span></div>
+<div class="box">24h VOL: <span id="vol">loading...</span></div>
+<div class="box">ORDER FLOW: <span class="green">LIVE</span></div>
+<div class="box">LIQ ZONE: <span class="red">ACTIVE</span></div>
 
 <div class="orderbook" id="book"></div>
 
 </div>
 
-<div class="panel"><div id="chart2"></div></div>
+<div class="panel"><div id="trades"></div></div>
 
-<div class="panel"><div id="chart3"></div></div>
+<div class="panel"><div id="liquidations"></div></div>
 
 </div>
 
-<!-- TICKER -->
-<div class="ticker">
-<div class="track">
-BTC +2.1% • ETH +3.4% • SOL +5.2% • XRP -1.2% • OPEN INTEREST +11% • LIQUIDATIONS SPIKE • WHALES ACTIVE •
-</div>
-</div>
+<script src="https://unpkg.com/ccxt@4.2.85/dist/ccxt.browser.min.js"></script>
 
 <script>
-let widgets = [];
+let symbol="BTCUSDT";
+let ws;
+let bookData=[];
 
-function chart(id,symbol,tf){
-return new TradingView.widget({
-  container_id:id,
-  width:"100%",
-  height:"100%",
-  symbol:"BINANCE:"+symbol,
-  interval:tf,
-  theme:"dark",
-  style:"1",
-  hide_side_toolbar:true,
-  allow_symbol_change:false
+/* TRADINGVIEW */
+function loadChart(){
+document.getElementById("chart").innerHTML="";
+
+new TradingView.widget({
+container_id:"chart",
+symbol:"BINANCE:"+symbol,
+interval:"1",
+theme:"dark",
+style:"1",
+hide_side_toolbar:true,
+allow_symbol_change:false
 });
 }
 
-function load(){
-let s=document.getElementById("symbol").value;
+/* BINANCE WEBSOCKET (REAL PRICE STREAM) */
+function connectWS(){
 
-document.getElementById("chart1").innerHTML="";
-document.getElementById("chart2").innerHTML="";
-document.getElementById("chart3").innerHTML="";
+if(ws) ws.close();
 
-chart("chart1",s,"1");
-chart("chart2",s,"15");
-chart("chart3",s,"60");
+ws=new WebSocket(
+`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@trade`
+);
+
+ws.onopen=()=>{
+document.getElementById("status").innerText="LIVE";
+};
+
+ws.onmessage=(event)=>{
+let data=JSON.parse(event.data);
+document.getElementById("price").innerText=parseFloat(data.p).toFixed(2);
+};
 }
 
-async function btc(){
-try{
-let r=await fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT");
-let d=await r.json();
-document.getElementById("btc").innerText="$"+Number(d.price).toFixed(0);
-}catch(e){}
-}
+/* ORDERBOOK (DEPTH STREAM) */
+let depthWS;
 
-/* MOCK ORDERBOOK (visual institutional style) */
-function book(){
+function orderbook(){
+if(depthWS) depthWS.close();
+
+depthWS=new WebSocket(
+`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@depth20@100ms`
+);
+
+depthWS.onmessage=(e)=>{
+let d=JSON.parse(e.data);
+
 let html="";
 
-for(let i=0;i<12;i++){
-html+=`
-<div class="row ask">
-<span>SELL ${(Math.random()*10).toFixed(2)}</span>
-<span>${(Math.random()*50+100).toFixed(2)}</span>
-</div>`;
-}
+/* ASKS */
+d.asks.slice(0,10).forEach(a=>{
+html+=`<div class="row ask"><span>SELL</span><span>${parseFloat(a[0]).toFixed(2)}</span></div>`;
+});
 
-for(let i=0;i<12;i++){
-html+=`
-<div class="row bid">
-<span>BUY ${(Math.random()*10).toFixed(2)}</span>
-<span>${(Math.random()*50+100).toFixed(2)}</span>
-</div>`;
-}
+/* BIDS */
+d.bids.slice(0,10).forEach(b=>{
+html+=`<div class="row bid"><span>BUY</span><span>${parseFloat(b[0]).toFixed(2)}</span></div>`;
+});
 
 document.getElementById("book").innerHTML=html;
+};
 }
 
-btc();
-setInterval(btc,4000);
-setInterval(book,1500);
+/* LIVE TRADES TAPE */
+let tradeWS;
 
-load();
-book();
+function trades(){
+if(tradeWS) tradeWS.close();
+
+tradeWS=new WebSocket(
+`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@trade`
+);
+
+tradeWS.onmessage=(e)=>{
+let t=JSON.parse(e.data);
+
+let el=document.getElementById("trades");
+el.innerHTML=
+`<div style="padding:10px;border-bottom:1px solid #1f2937">
+TRADE: ${parseFloat(t.p).toFixed(2)} | QTY: ${t.q}
+</div>` + el.innerHTML;
+
+if(el.children.length>15){
+el.removeChild(el.lastChild);
+}
+};
+}
+
+/* CHANGE SYMBOL */
+function changeSymbol(){
+symbol=document.getElementById("symbol").value;
+
+loadChart();
+connectWS();
+orderbook();
+trades();
+}
+
+/* INIT */
+changeSymbol();
+
 </script>
 
 </body>
